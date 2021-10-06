@@ -1,0 +1,40 @@
+name: GCP GKE setup Workflow
+
+on:
+  workflow_call:
+    inputs:
+      gke_cluster_name:
+        description: 'GKE K8S Cluster name'
+        required: true
+        type: string
+      gke_cluster_location:
+        description: 'GKE K8S Cluster location (zone)'
+        required: true
+        type: string
+    secrets:
+      gcp_project:
+        required: true
+      gcp_service_account_key:
+        required: true
+
+jobs:
+  gcp_gke_setup:
+    name: Prepare GCP environment to work with GKE
+    runs-on: ubuntu-latest
+    steps:
+    - name: Setup GCP
+      uses: google-github-actions/setup-gcloud@94337306dda8180d967a56932ceb4ddcf01edae7
+      with:
+        service_account_key: ${{ secrets.gcp_service_account_key }}
+        project_id: ${{ secrets.gcp_project }}
+
+    - name: Configure docker credentials
+      run: |-
+        gcloud --quiet auth configure-docker
+
+    - name: Get GKE Credentials
+      uses: google-github-actions/get-gke-credentials@fb08709ba27618c31c09e014e1d8364b02e5042e
+      with:
+        cluster_name: ${{ inputs.gke_cluster_name }}
+        location: ${{ inputs.gke_cluster_location }}
+        credentials: ${{ secrets.gcp_service_account_key }}

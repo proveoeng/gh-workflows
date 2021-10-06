@@ -1,0 +1,47 @@
+name: Kustomize Deploy Workflow
+
+on:
+  workflow_call:
+    inputs:
+      kustomization_dir:
+        description: 'Relative kustomization.yml directory'
+        required: true
+        type: string
+      base_image_repository:
+        description: 'The base docker image repository (grc.io/my_project_id/my_org)'
+        required: true
+        type: string
+      images_tags:
+        description: 'Space separated "IMAGE:TAG" list'
+        type: string
+        required: true
+      deployments:
+        description: 'Space separated k8s DEPLOYMENT names'
+        type: string
+        required: true
+
+jobs:
+  kustomize_deploy:
+    name: Deploys an application using kustomize
+    runs-on: ubuntu-latest
+    steps:
+    - name: Set up Kustomize
+      run: |-
+        curl -sfLo /tmp/kustomize https://github.com/kubernetes-sigs/kustomize/releases/download/v3.1.0/kustomize_3.1.0_linux_amd64
+        chmod u+x /tmp/kustomize
+
+    - name: Deploy using kustomize
+      run: |-
+        cd $KUSTOMIZATION_DIR
+        for IMAGE_TAG in $IMAGES_TAGS; \
+          do IMAGE=$(echo "$IMAGE_TAG" | cut -d':' -f1) ; \
+          /tmp/kustomize edit set image "$BASE_IMAGE_REPOSITORY"/"$IMAGE"="$BASE_IMAGE_REPOSITORY"/"$IMAGE_TAG"; \
+        done
+        /tmp/kustomize build . | kubectl apply -f -
+        for DEPLOYMENT in $DEPLOYMENTS; do kubectl rollout status deployment/"$DEPLOYMENT"; done
+        kubectl get services -o wide
+      env:
+        KUSTOMIZATION_DIR: ${{ inputs.kustomization_dir }}
+        IMAGES_TAGS: ${{ inputs.images_tags }}
+        DEPLOYMENTS: ${{ inputs.deployments }}
+        BASE_IMAGE_REPOSITORY: ${{ inputs.base_image_repository }}
