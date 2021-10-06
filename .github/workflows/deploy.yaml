@@ -19,22 +19,55 @@ on:
         description: 'Space separated k8s DEPLOYMENT names'
         type: string
         required: true
+      gke_cluster_name:
+        description: 'GKE K8S Cluster name'
+        required: true
+        type: string
+      gke_cluster_location:
+        description: 'GKE K8S Cluster location (zone)'
+        required: true
+        type: string
+    secrets:
+      gcp_project:
+        required: true
+      gcp_service_account_key:
+        required: true
 
 jobs:
   kustomize_deploy:
     name: Deploys an application using kustomize
     runs-on: ubuntu-latest
     steps:
-    - name: Checkout Code
+
+    - name: Checkout
       uses: actions/checkout@v2
+
+    - name: Setup GCP
+      uses: google-github-actions/setup-gcloud@94337306dda8180d967a56932ceb4ddcf01edae7
+      with:
+        service_account_key: ${{ secrets.gcp_service_account_key }}
+        project_id: ${{ secrets.gcp_project }}
+
+    - name: Configure docker credentials
+      run: |-
+        gcloud --quiet auth configure-docker
+
+    - name: Get GKE Credentials
+      uses: google-github-actions/get-gke-credentials@fb08709ba27618c31c09e014e1d8364b02e5042e
+      with:
+        cluster_name: ${{ inputs.gke_cluster_name }}
+        location: ${{ inputs.gke_cluster_location }}
+        credentials: ${{ secrets.gcp_service_account_key }}
+
     - name: Set up Kustomize
       run: |-
         curl -sfLo /tmp/kustomize https://github.com/kubernetes-sigs/kustomize/releases/download/v3.1.0/kustomize_3.1.0_linux_amd64
         chmod u+x /tmp/kustomize
 
-    - name: Deploy using kustomize
+    - name: Deploy with kustomize
       run: |-
-        cd $KUSTOMIZATION_DIR
+        cd "$KUSTOMIZATION_DIR"
+        /tmp/kustomize build .
         for IMAGE_TAG in $IMAGES_TAGS; \
           do IMAGE=$(echo "$IMAGE_TAG" | cut -d':' -f1) ; \
           /tmp/kustomize edit set image "$BASE_IMAGE_REPOSITORY"/"$IMAGE"="$BASE_IMAGE_REPOSITORY"/"$IMAGE_TAG"; \
