@@ -7,6 +7,10 @@ on:
         description: 'Relative kustomization.yml directory'
         required: true
         type: string
+      namespace:
+        description: 'Kubernetes namespace to run kubectl with'
+        required: true
+        type: string
       base_image_repository:
         description: 'The base docker image repository (grc.io/my_project_id/my_org)'
         required: true
@@ -73,10 +77,11 @@ jobs:
           /tmp/kustomize edit set image "$BASE_IMAGE_REPOSITORY"/"$IMAGE"="$BASE_IMAGE_REPOSITORY"/"$IMAGE_TAG"; \
         done
         /tmp/kustomize build . | kubectl apply -f -
-        for DEPLOYMENT in $DEPLOYMENTS; do kubectl rollout status deployment/"$DEPLOYMENT"; done
-        kubectl get services -o wide
+        for DEPLOYMENT in $DEPLOYMENTS; do kubectl rollout status deployment/"$DEPLOYMENT" -n "$NAMESPACE"; done
+        kubectl -n "$NAMESPACE" get services -o wide
       env:
         KUSTOMIZATION_DIR: ${{ inputs.kustomization_dir }}
+        NAMESPACE: ${{ inputs.namespace }}
         IMAGES_TAGS: ${{ inputs.images_tags }}
         DEPLOYMENTS: ${{ inputs.deployments }}
         BASE_IMAGE_REPOSITORY: ${{ inputs.base_image_repository }}
