@@ -75,6 +75,7 @@ jobs:
         for IMAGE_TAG in $IMAGES_TAGS; \
           do IMAGE=$(echo "$IMAGE_TAG" | cut -d':' -f1) ; \
           /tmp/kustomize edit set image "$BASE_IMAGE_REPOSITORY"/"$IMAGE"="$BASE_IMAGE_REPOSITORY"/"$IMAGE_TAG"; \
+          /tmp/kustomize edit set namespace "$NAMESPACE"; \
         done
         /tmp/kustomize build . | kubectl apply -f -
         for DEPLOYMENT in $DEPLOYMENTS; do kubectl rollout status deployment/"$DEPLOYMENT" -n "$NAMESPACE"; done
