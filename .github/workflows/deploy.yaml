@@ -77,6 +77,7 @@ jobs:
           /tmp/kustomize edit set image "$BASE_IMAGE_REPOSITORY"/"$IMAGE"="$BASE_IMAGE_REPOSITORY"/"$IMAGE_TAG"; \
           /tmp/kustomize edit set namespace "$NAMESPACE"; \
         done
+        kubectl -n "$NAMESPACE" delete job database-migration || true
         /tmp/kustomize build . | kubectl apply -f -
         for DEPLOYMENT in $DEPLOYMENTS; do kubectl rollout status deployment/"$DEPLOYMENT" -n "$NAMESPACE"; done
         kubectl -n "$NAMESPACE" get services -o wide
