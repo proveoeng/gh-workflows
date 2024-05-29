@@ -58,7 +58,7 @@ jobs:
 
     - name: Configure docker credentials
       run: |-
-        gcloud --quiet auth configure-docker
+        gcloud --quiet auth configure-docker europe-west4-docker.pkg.dev
 
     - name: Get GKE Credentials
       uses: google-github-actions/get-gke-credentials@fb08709ba27618c31c09e014e1d8364b02e5042e
