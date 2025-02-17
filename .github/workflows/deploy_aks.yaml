@@ -1,0 +1,79 @@
+name: Kustomize Deploy Workflow
+
+on:
+  workflow_call:
+    inputs:
+      kustomization_dir:
+        description: 'Relative kustomization.yml directory'
+        required: true
+        type: string
+      namespace:
+        description: 'Kubernetes namespace to run kubectl with'
+        required: true
+        type: string
+      base_image_repository:
+        description: 'The base docker image repository (grc.io/my_project_id/my_org)'
+        required: true
+        type: string
+      images_tags:
+        description: 'Space separated "IMAGE:TAG" list'
+        type: string
+        required: true
+      deployments:
+        description: 'Space separated k8s DEPLOYMENT names'
+        type: string
+        required: true
+    secrets:
+      azure_credentials:
+        required: true
+      azure_resource_group:
+        required: true
+      azure_aks_cluster_name:
+        required: true
+
+jobs:
+  kustomize_deploy:
+    name: Deploys an application to AKS cluster using kustomize
+    runs-on: ubuntu-latest
+    steps:
+
+    - name: Checkout
+      uses: actions/checkout@v2
+
+    - name: Azure login
+      id: login
+      uses: azure/login@v1.4.3
+      with:
+        creds: ${{ secrets.azure_credentials }}
+
+    - name: Set AKS context
+      id: set-context
+      uses: azure/aks-set-context@v3
+      with:
+        resource-group: '${{ secrets.azure_resource_group }}'
+        cluster-name: '${{ secrets.azure_aks_cluster_name }}'
+
+    - name: Set up Kustomize
+      run: |-
+        curl -sfLo /tmp/kustomize https://github.com/kubernetes-sigs/kustomize/releases/download/v3.1.0/kustomize_3.1.0_linux_amd64
+        chmod u+x /tmp/kustomize
+
+    - name: Deploy with kustomize
+      run: |-
+        cd "$KUSTOMIZATION_DIR"
+        /tmp/kustomize build .
+        for IMAGE_TAG in $IMAGES_TAGS; \
+          do IMAGE=$(echo "$IMAGE_TAG" | cut -d':' -f1) ; \
+          /tmp/kustomize edit set image "$BASE_IMAGE_REPOSITORY"/"$IMAGE"="$BASE_IMAGE_REPOSITORY"/"$IMAGE_TAG"; \
+          /tmp/kustomize edit set namespace "$NAMESPACE"; \
+        done
+        kubectl -n "$NAMESPACE" delete job database-migration || true
+        /tmp/kustomize build . | kubectl apply -f -
+        for DEPLOYMENT in $DEPLOYMENTS; do kubectl rollout status deployment/"$DEPLOYMENT" -n "$NAMESPACE"; done
+        kubectl -n "$NAMESPACE" get services -o wide
+      env:
+        KUSTOMIZATION_DIR: ${{ inputs.kustomization_dir }}
+        NAMESPACE: ${{ inputs.namespace }}
+        IMAGES_TAGS: ${{ inputs.images_tags }}
+        DEPLOYMENTS: ${{ inputs.deployments }}
+        BASE_IMAGE_REPOSITORY: ${{ inputs.base_image_repository }}
