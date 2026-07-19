@@ -71,6 +71,12 @@ jobs:
           /tmp/kustomize edit set image "$IMAGE"="$BASE_IMAGE_REPOSITORY"/"$IMAGE_TAG"; \
           /tmp/kustomize edit set namespace "$NAMESPACE"; \
         done
+        # Abort if a migration job is still running, so we never kill it mid-flight.
+        ACTIVE=$(kubectl -n "$NAMESPACE" get job database-migration -o jsonpath='{.status.active}' 2>/dev/null || echo 0)
+        if [ "${ACTIVE:-0}" -ge 1 ] 2>/dev/null; then
+          echo "::error::A database-migration job is already running in $NAMESPACE. Aborting to avoid killing it."
+          exit 1
+        fi
         kubectl -n "$NAMESPACE" delete job database-migration || true
         /tmp/kustomize build . | kubectl apply -f -
         for DEPLOYMENT in $DEPLOYMENTS; do kubectl rollout status deployment/"$DEPLOYMENT" -n "$NAMESPACE"; done
